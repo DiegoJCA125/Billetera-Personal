@@ -9,44 +9,41 @@ OAuth2 ES EL PROTOCO QUE USA GOOGLE PARA DAR ACCESO A UNA APP SIN NECESIDAD DE D
    PRÓXIMA vez no tenga que volver a aceptar en el navegador.
 """
 # LIBRERIAS QUE SE INSTALAN
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-import os
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 
 # SCOPES DEFINE QUE PUEDE HACER EN LA PP EN UNA LISTA DE PERMISOS
 # SE PEDIRA PERMISOS PARA LEER Y ESCRIBIR EN EL SHEETS
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+# NOMBRE DEL ARCHIVO DE LA LLAVE DE LA CUENTA DEL SERVICIO
+ARCHIVO_LLAVE = "service_account.json"
 
 def obtener_credenciales():
     """
-    Devuelve un objeto 'Credentials' valido listo para usar en las llamadas a la API de sheets
-    Si existe un token guardado en un sesion anterior , lo que hara es que lo cargara y lo reutilizara
-    Si existe pero ya se vencio o expiro, lo refrescra automaticamenta
-    Si no existe el token, abrira el navehador para que se acepten los permisos por primera vez y lo guardara
+    Carga las credenciales directamente desde el archivo JSON de
+    la cuenta de servicio. No hay navegador, no hay token que
+    guardar ni refrescar: cada vez que se llama a esta función,
+    genera credenciales válidas al instante a partir de la llave.
     """
-    creds = None
-
-    # 1 REVISA SI YA SE CUENTA CON UN TOKEN GUARDADO
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
-
-    # 2 Y 3 SI NO HAY TOKEN VALIDO, CONSEGUIRA UNO
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            # Si el token existe per vencio, se renovara sin abrir el navegadoir
-            creds.refresh(Request())
-        else:
-            # si no hay token, realizara el flujo completo, abrira el navegadr y pedira permisos
-            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
-            creds = flow.run_local_server(port=0)
-
-        with open("token.json", "w") as archivo_token:
-            archivo_token.write(creds.to_json())
+    creds = service_account.Credentials.from_service_account_file(
+        ARCHIVO_LLAVE, scopes=SCOPES
+    )
     return creds
 
+def obtener_servicio():
+    """
+    Igual que antes: construye el objeto 'service' para hablar
+    con la API de Sheets, pero ahora usando las credenciales de
+    la cuenta de servicio.
+    """
+    creds = obtener_credenciales()
+    service = build("sheets", "v4", credentials=creds)
+    return service
+
 if __name__ == "__main__":
-    credenciales = obtener_credenciales()
-    print("Autenticacion exitosa. Se creo / actualizo token.json")
+    servicio = obtener_servicio()
+    print("Autenticacion con cuenta de servicio exitosa.")
+    
+
 
     

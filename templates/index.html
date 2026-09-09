@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <!-- Esta línea es clave para que se vea bien en el celular:
+         le dice al navegador móvil que no "haga zoom" raro y use
+         el ancho real de la pantalla. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billetera Personal de Diego</title>
+    <style>
+        /* Estilos simples, nada de frameworks todavía */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .resumen {
+            background-color: white;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .balance {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        form {
+            background-color: white;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        label {
+            display: block;
+            margin-top: 12px;
+            font-size: 14px;
+            color: #555;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 4px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 16px;
+            background-color: #2e7d32;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h2>💰 Billetera Personal de Diego</h2>
+
+    <!-- Aquí usamos "Jinja2", el lenguaje de plantillas de Flask.
+         {{ variable }} inserta el valor de una variable de Python
+         directamente en el HTML. Estas variables (ingresos, gastos,
+         balance) son las que le pasamos desde app.py con render_template(). -->
+    <div class="resumen">
+        <p>Ingresos: ${{ "{:,.0f}".format(ingresos) }}</p>
+        <p>Gastos: ${{ "{:,.0f}".format(gastos) }}</p>
+        <p>Balance:</p>
+        <p class="balance">${{ "{:,.0f}".format(balance) }}</p>
+    </div>
+
+    <!-- action="/registrar" le dice al formulario A QUÉ RUTA enviar
+         los datos cuando se envía. method="POST" debe coincidir con
+         lo que definimos en app.py (methods=["POST"]). -->
+    <form action="/registrar" method="POST">
+        <label>Tipo</label>
+        <select name="tipo" required>
+            <option value="Gasto">Gasto</option>
+            <option value="Ingreso">Ingreso</option>
+        </select>
+
+        <label>Categoría</label>
+        <input type="text" name="categoria" placeholder="Ej: Comida, Transporte, Salario" required>
+
+        <label>Descripción</label>
+        <input type="text" name="descripcion" placeholder="Ej: Almuerzo, Recarga celular" required>
+
+        <label>Monto</label>
+        <input type="number" name="monto" step="0.01" placeholder="0" required>
+
+        <button type="submit">Guardar</button>
+    </form>
+</body>
+</html>

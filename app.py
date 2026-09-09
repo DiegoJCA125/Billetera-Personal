@@ -18,3 +18,49 @@ función: le agrega comportamiento extra sin que tengas que
 modificar el código de la función misma.
 """
 
+from  flask import Flask, render_template, request, redirect
+from main import registrar_gasto, registrar_ingreso, calcular_balance
+
+app = Flask(__name__)
+
+@app.route("/")
+def pagina_principal():
+    ingresos, gastos, balance = calcular_balance()
+    return render_template(
+        "index.html", ingresos=ingresos, gastos=gastos, balance=balance
+    )
+
+@app.route("/registrar", methods=["POST"])
+def procesar_formulario():
+    """
+    Se ejecuta SOLO cuando el formulario HTML envía sus datos (por
+    eso methods=["POST"] — POST es el método que usan los formularios
+    para "enviar" información, a diferencia de GET que es para "pedir"
+    una página).
+ 
+    request.form es un diccionario con lo que el usuario escribió en
+    el formulario. Las llaves ("tipo", "categoria", etc.) deben
+    coincidir EXACTAMENTE con el atributo "name" de cada campo en
+    el HTML (eso lo vemos en el siguiente paso).
+    """
+    tipo = request.form["tipo"]
+    categoria = request.form["categoria"]
+    descripcion = request.form["descripcion"]
+    monto = float(request.form["monto"])
+
+    if tipo == "Gasto":
+        registrar_gasto(categoria,descripcion,monto)
+    else:
+        registrar_ingreso(categoria,descripcion,monto)
+    # redirect("/") manda al usuario de vuelta a la página principal
+    # después de guardar. Esto evita un problema clásico: si alguien
+    # refresca la página después de enviar un formulario, el navegador
+    # podría reenviar el mismo dato sin querer y duplicarlo.    
+    return redirect("/")  # redirige a la página principal
+
+# host="0.0.0.0" es LA CLAVE para que puedas entrar desde tu celular:
+# significa "acepta conexiones desde cualquier dispositivo en la red",
+# no solo desde esta misma PC. Sin esto, solo tú desde el navegador
+# de tu propio computador podrías verlo.
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
