@@ -17,7 +17,7 @@ Un "decorador" es esa línea que empieza con @ justo encima de una
 función: le agrega comportamiento extra sin que tengas que
 modificar el código de la función misma.
 """
-
+import os
 from  flask import Flask, render_template, request, redirect
 from main import registrar_gasto, registrar_ingreso, calcular_balance
 
@@ -25,6 +25,11 @@ app = Flask(__name__)
 
 @app.route("/")
 def pagina_principal():
+    """
+    Se ejecuta cuando visitas la página principal (ej. localhost:5000).
+    Calculamos el balance actual y se lo pasamos a la plantilla HTML
+    para mostrarlo en pantalla.
+    """
     ingresos, gastos, balance = calcular_balance()
     return render_template(
         "index.html", ingresos=ingresos, gastos=gastos, balance=balance
@@ -63,4 +68,5 @@ def procesar_formulario():
 # no solo desde esta misma PC. Sin esto, solo tú desde el navegador
 # de tu propio computador podrías verlo.
 if __name__ == "__main__":
+    puerto = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=5000, debug=True)

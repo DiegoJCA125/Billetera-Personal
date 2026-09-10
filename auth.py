@@ -1,14 +1,23 @@
 """
-OAuth2 ES EL PROTOCO QUE USA GOOGLE PARA DAR ACCESO A UNA APP SIN NECESIDAD DE DARLE UN CONTRASEÑA
-
-1. El script abre una ventana del navegador.
-2. inicia sesión y acepta los permisos ("esta app quiere leer/
-   escribir en el Sheets").
-3. Google entrega al script un "token" (una llave temporal).
-4. Ese token se guarda en un archivo (token.json) para que la
-   PRÓXIMA vez no tenga que volver a aceptar en el navegador.
+auth.py (versión lista para producción)
+------------------------------------------
+Ahora esta función revisa DOS posibles fuentes para las credenciales,
+en este orden:
+ 
+1. Variable de entorno GOOGLE_SERVICE_ACCOUNT_JSON
+   -> Se usa cuando la app corre en Render (o cualquier hosting).
+      Ahí no existe el archivo físico, así que guardamos el JSON
+      completo como texto dentro de esa variable.
+ 
+2. Archivo local service_account.json
+   -> Se usa cuando trabajas en tu propia PC, como hasta ahora.
+ 
+Así, el MISMO código funciona en los dos ambientes sin tener que
+mantener dos versiones distintas.
 """
 # LIBRERIAS QUE SE INSTALAN
+import os
+import json
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
@@ -17,17 +26,22 @@ from googleapiclient.discovery import build
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 # NOMBRE DEL ARCHIVO DE LA LLAVE DE LA CUENTA DEL SERVICIO
 ARCHIVO_LLAVE = "service_account.json"
+NOMBRE_VARIABLE_ENTORNO = "GOOGLE_SERVICE_ACCOUNT_JSON"
 
 def obtener_credenciales():
     """
-    Carga las credenciales directamente desde el archivo JSON de
-    la cuenta de servicio. No hay navegador, no hay token que
-    guardar ni refrescar: cada vez que se llama a esta función,
-    genera credenciales válidas al instante a partir de la llave.
+    os.environ.get(nombre) busca una variable de entorno por su
+    nombre. Si no existe, devuelve None (en vez de dar error),
+    por eso podemos usarlo para "preguntar" si existe sin romper
+    el programa.
     """
-    creds = service_account.Credentials.from_service_account_file(
-        ARCHIVO_LLAVE, scopes=SCOPES
-    )
+    contenido_variable = os.environ.get(NOMBRE_VARIABLE_ENTORNO)
+
+    if contenido_variable:
+        info = json.loads(contenido_variable)
+        creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+    else:
+        creds = service_account.Credentials.from_service_account_file(ARCHIVO_LLAVE, scopes=SCOPES)
     return creds
 
 def obtener_servicio():
