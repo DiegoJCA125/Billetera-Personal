@@ -58,6 +58,46 @@ def calcular_balance():
     balance = total_ingresos - total_gastos
     return total_ingresos, total_gastos, balance
 
+def obtener_historial():
+    """
+    Devuelve los últimos 'limite' movimientos, del más reciente al
+    más antiguo, listos para mostrar en pantalla o en la web.
+ 
+    Cada movimiento se devuelve como un diccionario (no una lista
+    simple) para que sea más legible acceder a sus datos: en vez de
+    fila[0], fila[1]..., podrás usar movimiento["fecha"],
+    movimiento["monto"], etc.
+ 
+    OJO: también guardamos "fila_numero" — la posición REAL de esa
+    fila dentro de la Google Sheet (contando el encabezado como
+    fila 1). Todavía no lo usamos para nada, pero lo vamos a
+    necesitar en el próximo paso, cuando agreguemos "editar" y
+    "borrar" — para eso hay que saber EXACTAMENTE qué fila tocar.
+    """
+    filas = leer_todas_las_filas()
+    datos = filas[1:] # Se saltara el encabezado
+
+    historial = []
+    for indice, fila in enumerate(datos):
+        # enumerate() nos da, en cada vuelta del bucle, tanto la
+        # POSICIÓN (indice: 0, 1, 2...) como el VALOR (fila).
+        # La fila real en Sheets es indice + 2, porque:
+        #   - Sheets empieza a contar en 1, no en 0 (+1)
+        #   - la fila 1 es el encabezado, así que los datos
+        #     empiezan en la fila 2 (+1 otra vez)
+        fecha, tipo, categoria, descripcion, monto = fila
+        historial.append({
+            "fila_numero": indice +2,
+            "fecha": fecha,
+            "tipo": tipo,
+            "categoria": categoria,
+            "descripcion": descripcion,
+            "monto": float(monto),
+        })
+    historial_reciente_primero = historial[::-1]
+    return historial_reciente_primero[:limite]
+    
+
 def mostrar_resumen():
     ingresos, gastos, balance = calcular_balance()
     print("\n RESUMEN DE TU BILLETERA")
@@ -84,7 +124,8 @@ def menu():
         print("1. Registrar un gasto")
         print("2. Registrar un ingreso")
         print("3. Mostrar resumen")
-        print("4. Salir")
+        print("4. Ver historial")
+        print("5. Salir")
         opcion = input("Elige una opción (1-4): ")
 
         if opcion == "1":
@@ -103,6 +144,17 @@ def menu():
             mostrar_resumen()
 
         elif opcion == "4":
+            historial = obtener_historial(limite=10)
+            print("\n Ultimos 10 movimientos")
+            for movimiento in historial:
+                print(
+                    f"   [{movimiento['fila_numero']}] "
+                    f"{movimiento['fecha']} | {movimiento['tipo']} | "
+                    f"{movimiento['categoria']} | {movimiento['descripcion']} | "
+                    f"${movimiento['monto']:,.0f}"
+                )
+        
+        elif opcion == "5":
             print("¡Hasta luego!")
             break
 
