@@ -6,7 +6,7 @@
          le dice al navegador móvil que no "haga zoom" raro y use
          el ancho real de la pantalla. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Billetera Personal de Diego</title>
+    <title>Billetera Personal</title>
     <style>
         /* Estilos simples, nada de frameworks todavía */
         body {
@@ -58,10 +58,38 @@
             border-radius: 6px;
             font-size: 16px;
         }
+        .historial {
+            margin-top: 20px;
+        }
+        .movimiento {
+            background-color: white;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .movimiento-info {
+            font-size: 14px;
+        }
+        .movimiento-fecha {
+            color: #888;
+            font-size: 12px;
+        }
+        .monto-gasto {
+            color: #c62828;
+            font-weight: bold;
+        }
+        .monto-ingreso {
+            color: #2e7d32;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
-    <h2>💰 Billetera Personal de Diego</h2>
+    <h2>💰 Billetera Personal</h2>
 
     <!-- Aquí usamos "Jinja2", el lenguaje de plantillas de Flask.
          {{ variable }} inserta el valor de una variable de Python
@@ -95,5 +123,32 @@
 
         <button type="submit">Guardar</button>
     </form>
+
+    {# Este bucle repite el bloque de abajo una vez por cada
+       diccionario en la lista "historial" (la que le pasamos desde
+       app.py), generando una tarjeta con sus datos por cada uno. #}
+    <div class="historial">
+        <h3>📋 Últimos movimientos</h3>
+
+        {# Si la lista "historial" está vacía, mostramos un mensaje
+           en vez de una lista vacía sin sentido. #}
+        {% if historial %}
+            {% for movimiento in historial %}
+                <div class="movimiento">
+                    <div class="movimiento-info">
+                        <div>{{ movimiento.categoria }} — {{ movimiento.descripcion }}</div>
+                        <div class="movimiento-fecha">{{ movimiento.fecha }}</div>
+                    </div>
+                    <!-- Esta condición elige la clase CSS (color rojo
+                         o verde) según si es Gasto o Ingreso. -->
+                    <div class="{{ 'monto-gasto' if movimiento.tipo == 'Gasto' else 'monto-ingreso' }}">
+                        {{ '-' if movimiento.tipo == 'Gasto' else '+' }}${{ "{:,.0f}".format(movimiento.monto) }}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>Todavía no hay movimientos registrados.</p>
+        {% endif %}
+    </div>
 </body>
 </html>
