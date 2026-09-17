@@ -19,7 +19,8 @@ modificar el código de la función misma.
 """
 
 import os
-from flask import Flask, render_template, request, redirect
+from functools import wraps
+from flask import Flask, render_template, request, redirect, Response
 from main import (
     registrar_gasto,
     registrar_ingreso,
@@ -35,7 +36,64 @@ from main import (
 app = Flask(__name__)
 
 
+# --- Autenticación con usuario y contraseña ---
+#
+# Leemos el usuario/contraseña desde variables de entorno (nunca
+# escritos directamente en el código), igual que hicimos con la
+# llave de Google. Si no configuras nada, usa estos valores por
+# defecto SOLO para que puedas probar localmente sin dolores de
+# cabeza — pero en Render SIEMPRE vas a configurar los tuyos.
+USUARIO_APP = os.environ.get("APP_USERNAME", "admin")
+CONTRASENA_APP = os.environ.get("APP_PASSWORD", "cambiame123")
+
+
+def credenciales_validas(usuario, contrasena):
+    """Compara lo que escribió la persona contra lo configurado."""
+    return usuario == USUARIO_APP and contrasena == CONTRASENA_APP
+
+
+def pedir_autenticacion():
+    """
+    Devuelve una respuesta HTTP especial (código 401 "No autorizado")
+    que hace que el navegador muestre automáticamente su cuadro
+    nativo de "usuario y contraseña" — no tenemos que diseñar
+    nosotros esa ventana, el navegador ya la trae integrada para
+    este tipo de autenticación (se llama "HTTP Basic Auth").
+    """
+    return Response(
+        "Acceso restringido. Ingresa tu usuario y contraseña.",
+        401,
+        {"WWW-Authenticate": 'Basic realm="Billetera Personal"'},
+    )
+
+
+def requiere_login(funcion_vista):
+    """
+    Este es un DECORADOR (por eso empieza con @ cuando lo usamos).
+    Un decorador "envuelve" una función para agregarle comportamiento
+    extra sin modificar su código interno.
+
+    Aquí, antes de dejar que se ejecute cualquier ruta marcada con
+    @requiere_login, primero revisamos si la persona ya mandó
+    credenciales válidas (request.authorization). Si no las mandó,
+    o están mal, cortamos ahí mismo con pedir_autenticacion() y la
+    función original (funcion_vista) nunca llega a ejecutarse.
+
+    @wraps(funcion_vista) es un detalle técnico necesario para que
+    Flask no se confunda entre las distintas rutas decoradas — sin
+    esto, Flask podría pensar que todas las rutas se llaman igual.
+    """
+    @wraps(funcion_vista)
+    def funcion_envuelta(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not credenciales_validas(auth.username, auth.password):
+            return pedir_autenticacion()
+        return funcion_vista(*args, **kwargs)
+    return funcion_envuelta
+
+
 @app.route("/")
+@requiere_login
 def pagina_principal():
     """
     Se ejecuta cuando visitas la página principal (ej. localhost:5000).
@@ -54,6 +112,7 @@ def pagina_principal():
 
 
 @app.route("/registrar", methods=["POST"])
+@requiere_login
 def procesar_formulario():
     """
     Se ejecuta SOLO cuando el formulario HTML envía sus datos (por
@@ -84,6 +143,7 @@ def procesar_formulario():
 
 
 @app.route("/eliminar/<int:numero_fila>", methods=["POST"])
+@requiere_login
 def eliminar(numero_fila):
     """
     <int:numero_fila> en la ruta es una "variable de URL": Flask
@@ -99,6 +159,7 @@ def eliminar(numero_fila):
 
 
 @app.route("/editar/<int:numero_fila>", methods=["GET"])
+@requiere_login
 def mostrar_formulario_editar(numero_fila):
     """
     Muestra un formulario PRELLENADO con los datos actuales de ese
@@ -124,6 +185,7 @@ def mostrar_formulario_editar(numero_fila):
 
 
 @app.route("/editar/<int:numero_fila>", methods=["POST"])
+@requiere_login
 def procesar_edicion(numero_fila):
     """
     Esta es la ruta que SÍ guarda los cambios, cuando envías el
@@ -142,6 +204,7 @@ def procesar_edicion(numero_fila):
 
 
 @app.route("/graficas")
+@requiere_login
 def pagina_graficas():
     """
     gastos_por_categoria() nos da un diccionario, ej:
