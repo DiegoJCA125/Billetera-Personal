@@ -86,6 +86,30 @@
             color: #2e7d32;
             font-weight: bold;
         }
+        .movimiento-monto {
+            text-align: right;
+        }
+        .acciones {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .btn-accion {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: none;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .btn-editar {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+        .btn-eliminar {
+            background-color: #ffebee;
+            color: #c62828;
+        }
     </style>
 </head>
 <body>
@@ -139,10 +163,29 @@
                         <div>{{ movimiento.categoria }} — {{ movimiento.descripcion }}</div>
                         <div class="movimiento-fecha">{{ movimiento.fecha }}</div>
                     </div>
-                    <!-- Esta condición elige la clase CSS (color rojo
-                         o verde) según si es Gasto o Ingreso. -->
-                    <div class="{{ 'monto-gasto' if movimiento.tipo == 'Gasto' else 'monto-ingreso' }}">
-                        {{ '-' if movimiento.tipo == 'Gasto' else '+' }}${{ "{:,.0f}".format(movimiento.monto) }}
+                    <div class="movimiento-monto">
+                        <!-- Esta condición elige la clase CSS (color rojo
+                             o verde) según si es Gasto o Ingreso. -->
+                        <div class="{{ 'monto-gasto' if movimiento.tipo == 'Gasto' else 'monto-ingreso' }}">
+                            {{ '-' if movimiento.tipo == 'Gasto' else '+' }}${{ "{:,.0f}".format(movimiento.monto) }}
+                        </div>
+                        <div class="acciones">
+                            {# Editar es un simple link <a>, porque su
+                               ruta usa method="GET" (solo pedimos VER
+                               una página, todavía no cambiamos nada). #}
+                            <a class="btn-accion btn-editar" href="/editar/{{ movimiento.fila_numero }}">Editar</a>
+
+                            {# Eliminar SÍ modifica datos, así que debe
+                               ser un formulario con method="POST", no
+                               un link simple. onsubmit muestra un
+                               cuadro de confirmación de JavaScript antes
+                               de enviar, para evitar borrados accidentales
+                               por un toque sin querer en el celular. #}
+                            <form action="/eliminar/{{ movimiento.fila_numero }}" method="POST"
+                                  onsubmit="return confirm('¿Seguro que quieres eliminar este movimiento?');">
+                                <button type="submit" class="btn-accion btn-eliminar">Eliminar</button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             {% endfor %}

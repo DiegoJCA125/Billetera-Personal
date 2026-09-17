@@ -10,7 +10,40 @@ cosa y la hace bien.
 """
 
 from datetime import date
-from sheets import leer_todas_las_filas, agregar_fila
+from sheets import leer_todas_las_filas, agregar_fila, actualizar_fila, borrar_fila
+
+
+def eliminar_movimiento(numero_fila):
+    """
+    Elimina un movimiento por su número de fila. Es solo un "puente"
+    hacia borrar_fila() de sheets.py, pero seguimos el mismo patrón
+    de siempre: main.py nunca habla directo con la API, siempre pasa
+    por sheets.py.
+    """
+    borrar_fila(numero_fila)
+    print(f"🗑️ Fila {numero_fila} eliminada.")
+
+
+def editar_movimiento(numero_fila, tipo, categoria, descripcion, monto):
+    """
+    Edita un movimiento existente. Mantenemos la fecha ORIGINAL del
+    movimiento (no la cambiamos a "hoy"), porque estás corrigiendo
+    un dato, no creando uno nuevo — normalmente no quieres perder
+    de vista cuándo ocurrió realmente el gasto.
+    """
+    historial = obtener_historial(limite=9999)
+    fecha_original = None
+    for movimiento in historial:
+        if movimiento["fila_numero"] == numero_fila:
+            fecha_original = movimiento["fecha"]
+            break
+
+    if fecha_original is None:
+        print(f"⚠️ No se encontró ningún movimiento en la fila {numero_fila}.")
+        return
+
+    actualizar_fila(numero_fila, fecha_original, tipo, categoria, descripcion, monto)
+    print(f"✅ Fila {numero_fila} actualizada.")
 
 
 def registrar_movimiento(tipo, categoria, descripcion, monto):
@@ -158,8 +191,10 @@ def menu():
         print("2. Registrar un ingreso")
         print("3. Ver resumen")
         print("4. Ver historial")
-        print("5. Salir")
-        opcion = input("Elige una opción (1-5): ")
+        print("5. Editar un movimiento")
+        print("6. Eliminar un movimiento")
+        print("7. Salir")
+        opcion = input("Elige una opción (1-7): ")
 
         if opcion == "1":
             categoria = input("Categoría (ej. Comida, Transporte): ")
@@ -188,6 +223,18 @@ def menu():
                 )
 
         elif opcion == "5":
+            numero_fila = int(input("Número de fila a editar (lo ves en el historial): "))
+            tipo = input("Nuevo tipo (Gasto/Ingreso): ")
+            categoria = input("Nueva categoría: ")
+            descripcion = input("Nueva descripción: ")
+            monto = float(input("Nuevo monto: "))
+            editar_movimiento(numero_fila, tipo, categoria, descripcion, monto)
+
+        elif opcion == "6":
+            numero_fila = int(input("Número de fila a eliminar (lo ves en el historial): "))
+            eliminar_movimiento(numero_fila)
+
+        elif opcion == "7":
             print("¡Hasta luego! 👋")
             break
 

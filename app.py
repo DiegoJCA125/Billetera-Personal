@@ -20,7 +20,14 @@ modificar el código de la función misma.
 
 import os
 from flask import Flask, render_template, request, redirect
-from main import registrar_gasto, registrar_ingreso, calcular_balance, obtener_historial
+from main import (
+    registrar_gasto,
+    registrar_ingreso,
+    calcular_balance,
+    obtener_historial,
+    editar_movimiento,
+    eliminar_movimiento,
+)
 
 # Esto crea la aplicación Flask. __name__ le dice a Flask en qué
 # archivo está corriendo, para que sepa dónde buscar plantillas HTML.
@@ -72,6 +79,64 @@ def procesar_formulario():
     # después de guardar. Esto evita un problema clásico: si alguien
     # refresca la página después de enviar un formulario, el navegador
     # podría reenviar el mismo dato sin querer y duplicarlo.
+    return redirect("/")
+
+
+@app.route("/eliminar/<int:numero_fila>", methods=["POST"])
+def eliminar(numero_fila):
+    """
+    <int:numero_fila> en la ruta es una "variable de URL": Flask
+    toma lo que venga en esa parte de la dirección (ej. /eliminar/5)
+    y lo convierte automáticamente a número entero, pasándolo como
+    el parámetro numero_fila de esta función. Si alguien pusiera
+    /eliminar/abc (texto en vez de número), Flask respondería con
+    un error 404 automáticamente, sin que tengamos que validarlo
+    nosotros a mano.
+    """
+    eliminar_movimiento(numero_fila)
+    return redirect("/")
+
+
+@app.route("/editar/<int:numero_fila>", methods=["GET"])
+def mostrar_formulario_editar(numero_fila):
+    """
+    Muestra un formulario PRELLENADO con los datos actuales de ese
+    movimiento, para que solo corrijas lo que necesites.
+
+    methods=["GET"] (a diferencia de ["POST"]) porque aquí solo
+    estamos "pidiendo ver" una página, no enviando datos todavía.
+
+    Buscamos el movimiento específico dentro del historial completo
+    comparando su fila_numero con el que viene en la URL.
+    """
+    historial = obtener_historial(limite=9999)
+    movimiento = None
+    for m in historial:
+        if m["fila_numero"] == numero_fila:
+            movimiento = m
+            break
+
+    if movimiento is None:
+        return redirect("/")
+
+    return render_template("editar.html", movimiento=movimiento)
+
+
+@app.route("/editar/<int:numero_fila>", methods=["POST"])
+def procesar_edicion(numero_fila):
+    """
+    Esta es la ruta que SÍ guarda los cambios, cuando envías el
+    formulario de editar.html. Fíjate que la URL es la MISMA que la
+    de arriba (/editar/<int:numero_fila>) pero el método es distinto
+    (POST en vez de GET) — Flask usa ambas cosas juntas (URL + método)
+    para decidir qué función ejecutar.
+    """
+    tipo = request.form["tipo"]
+    categoria = request.form["categoria"]
+    descripcion = request.form["descripcion"]
+    monto = float(request.form["monto"])
+
+    editar_movimiento(numero_fila, tipo, categoria, descripcion, monto)
     return redirect("/")
 
 
