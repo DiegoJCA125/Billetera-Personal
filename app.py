@@ -27,6 +27,7 @@ from main import (
     obtener_historial,
     editar_movimiento,
     eliminar_movimiento,
+    gastos_por_categoria,
 )
 
 # Esto crea la aplicación Flask. __name__ le dice a Flask en qué
@@ -138,6 +139,29 @@ def procesar_edicion(numero_fila):
 
     editar_movimiento(numero_fila, tipo, categoria, descripcion, monto)
     return redirect("/")
+
+
+@app.route("/graficas")
+def pagina_graficas():
+    """
+    gastos_por_categoria() nos da un diccionario, ej:
+    {"Comida": 150000, "Transporte": 80000}
+
+    Pero Chart.js (la librería de JavaScript que dibuja la gráfica)
+    espera los datos en DOS listas separadas: una de nombres (labels)
+    y otra de números (data), en el mismo orden. Por eso las separamos
+    aquí antes de pasarlas a la plantilla.
+
+    list(diccionario.keys())   -> lista de las categorías
+    list(diccionario.values()) -> lista de los montos, en ese mismo orden
+    """
+    totales = gastos_por_categoria()
+    categorias = list(totales.keys())
+    montos = list(totales.values())
+
+    return render_template(
+        "graficas.html", categorias=categorias, montos=montos
+    )
 
 
 # host="0.0.0.0" es LA CLAVE para que puedas entrar desde tu celular:

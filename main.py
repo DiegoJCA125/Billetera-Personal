@@ -109,6 +109,41 @@ def calcular_balance():
     return total_ingresos, total_gastos, balance
 
 
+def gastos_por_categoria():
+    """
+    Agrupa SOLO los gastos (ignora ingresos) y suma el total por
+    cada categoría. Es el mismo concepto que un GROUP BY + SUM en
+    SQL, o un groupby() de pandas, pero aquí lo hacemos "a mano"
+    con un diccionario — así entiendes qué pasa por dentro cuando
+    esas herramientas hacen la magia por ti.
+
+    Devuelve un diccionario como:
+    {"Comida": 150000, "Transporte": 80000, "Celular": 45000}
+    """
+    filas = leer_todas_las_filas()
+    datos = filas[1:]
+
+    totales = {}  # diccionario vacío donde iremos acumulando
+
+    for fila in datos:
+        fecha, tipo, categoria, descripcion, monto = fila
+
+        if tipo != "Gasto":
+            continue  # "continue" salta a la siguiente vuelta del
+                       # bucle sin ejecutar el resto — así ignoramos
+                       # los ingresos sin necesitar un if/else largo
+
+        monto = float(monto)
+
+        # .get(categoria, 0) busca esa categoría en el diccionario;
+        # si todavía no existe, usa 0 como valor por defecto en vez
+        # de dar error. Así podemos sumar directamente sin tener que
+        # revisar antes "¿ya existe esta categoría o no?".
+        totales[categoria] = totales.get(categoria, 0) + monto
+
+    return totales
+
+
 def obtener_historial(limite=10):
     """
     Devuelve los últimos 'limite' movimientos, del más reciente al

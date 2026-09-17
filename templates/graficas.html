@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gráficas - Billetera Personal</title>
+
+    <!-- Chart.js es una librería de JavaScript que dibuja gráficas.
+         La cargamos desde un CDN (un servidor externo que solo sirve
+         estos archivos), así no tenemos que instalar nada con pip;
+         esto es JavaScript, no Python. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        a {
+            display: block;
+            text-align: center;
+            margin-top: 16px;
+            color: #555;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h2>📊 Gastos por categoría</h2>
+
+    <div class="card">
+        <canvas id="graficaGastos"></canvas>
+    </div>
+
+    <a href="/">← Volver al inicio</a>
+
+    <script>
+        // Aquí es donde Jinja2 "entrega" los datos de Python a
+        // JavaScript. | tojson convierte la lista de Python
+        // (ej. ["Comida", "Transporte"]) en su equivalente exacto
+        // de JavaScript, de forma segura (escapando caracteres
+        // especiales que podrían romper el código si no se manejan bien).
+        const categorias = {{ categorias | tojson }};
+        const montos = {{ montos | tojson }};
+
+        // Buscamos el <canvas> de arriba por su id, y le decimos a
+        // Chart.js: "dibuja aquí una gráfica de tipo pastel (pie),
+        // con estas categorías como etiquetas y estos montos como
+        // valores".
+        const ctx = document.getElementById('graficaGastos');
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: categorias,
+                datasets: [{
+                    label: 'Gastos',
+                    data: montos,
+                    backgroundColor: [
+                        '#e57373', '#64b5f6', '#81c784', '#ffd54f',
+                        '#ba68c8', '#4db6ac', '#ff8a65', '#a1887f'
+                    ]
+                }]
+            }
+        });
+    </script>
+</body>
+</html>
