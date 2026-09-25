@@ -1,204 +1,127 @@
 """
 main.py
 --------
-Aquí vive la LÓGICA DE NEGOCIO de la billetera: las reglas de qué
-significa "registrar un gasto" o "calcular mi balance". Este archivo
-NO sabe nada de cómo se conecta a Google — para eso usa las funciones
-que ya construimos en sheets.py. Esto es una buena práctica que se
-llama "separación de responsabilidades": cada archivo hace una sola
-cosa y la hace bien.
+Misma lógica de negocio de siempre, pero ahora hablando con db.py
+(PostgreSQL) en vez de sheets.py (Google Sheets API).
+
+Fíjate en algo importante: las funciones que usa app.py (Flask) se
+llaman EXACTAMENTE igual que antes (registrar_gasto, calcular_balance,
+obtener_historial, etc.) — por eso app.py y los templates HTML no
+necesitan casi ningún cambio. Esto es la ventaja real de haber
+separado responsabilidades desde el principio: pudimos cambiar POR
+COMPLETO la forma en que se guardan los datos sin tocar la interfaz
+web para nada.
 """
 
 from datetime import date
-from sheets import leer_todas_las_filas, agregar_fila, actualizar_fila, borrar_fila
-
-
-def eliminar_movimiento(numero_fila):
-    """
-    Elimina un movimiento por su número de fila. Es solo un "puente"
-    hacia borrar_fila() de sheets.py, pero seguimos el mismo patrón
-    de siempre: main.py nunca habla directo con la API, siempre pasa
-    por sheets.py.
-    """
-    borrar_fila(numero_fila)
-    print(f"🗑️ Fila {numero_fila} eliminada.")
-
-
-def editar_movimiento(numero_fila, tipo, categoria, descripcion, monto):
-    """
-    Edita un movimiento existente. Mantenemos la fecha ORIGINAL del
-    movimiento (no la cambiamos a "hoy"), porque estás corrigiendo
-    un dato, no creando uno nuevo — normalmente no quieres perder
-    de vista cuándo ocurrió realmente el gasto.
-    """
-    historial = obtener_historial(limite=9999)
-    fecha_original = None
-    for movimiento in historial:
-        if movimiento["fila_numero"] == numero_fila:
-            fecha_original = movimiento["fecha"]
-            break
-
-    if fecha_original is None:
-        print(f"⚠️ No se encontró ningún movimiento en la fila {numero_fila}.")
-        return
-
-    actualizar_fila(numero_fila, fecha_original, tipo, categoria, descripcion, monto)
-    print(f"✅ Fila {numero_fila} actualizada.")
+from db import (
+    leer_todas_las_filas,
+    agregar_fila,
+    actualizar_fila,
+    borrar_fila,
+    obtener_fila_por_id,
+    obtener_balance,
+    obtener_totales_por_categoria,
+)
 
 
 def registrar_movimiento(tipo, categoria, descripcion, monto):
-    """
-    Función genérica para registrar CUALQUIER movimiento (gasto o ingreso).
-    Las funciones de arriba (registrar_gasto, registrar_ingreso) son solo
-    atajos más claros de usar, pero ambas terminan llamando a esta.
-
-    date.today() devuelve la fecha de HOY automáticamente, así no
-    tienes que escribirla a mano cada vez.
-    .isoformat() la convierte al formato "AAAA-MM-DD" (ej. 2026-09-04),
-    que es el estándar que ya usamos en la hoja.
-    """
     fecha_hoy = date.today().isoformat()
     agregar_fila(fecha_hoy, tipo, categoria, descripcion, monto)
     print(f"✅ Registrado: {tipo} | {categoria} | {descripcion} | ${monto}")
 
 
 def registrar_gasto(categoria, descripcion, monto):
-    """Atajo para registrar un gasto. Simplemente fija tipo='Gasto'."""
     registrar_movimiento("Gasto", categoria, descripcion, monto)
 
 
 def registrar_ingreso(categoria, descripcion, monto):
-    """Atajo para registrar un ingreso (ej. tu salario)."""
     registrar_movimiento("Ingreso", categoria, descripcion, monto)
+
+
+def eliminar_movimiento(id_movimiento):
+    borrar_fila(id_movimiento)
+    print(f"🗑️ Movimiento {id_movimiento} eliminado.")
+
+
+def editar_movimiento(id_movimiento, tipo, categoria, descripcion, monto):
+    """
+    Igual que antes: conservamos la fecha ORIGINAL del movimiento en
+    vez de reemplazarla por la de hoy. Ahora, en vez de recorrer todo
+    el historial buscando el id (como hacíamos con la lista de
+    Sheets), pedimos DIRECTAMENTE esa fila por su id con una consulta
+    SQL — mucho más eficiente.
+    """
+    fila_actual = obtener_fila_por_id(id_movimiento)
+
+    if fila_actual is None:
+        print(f"⚠️ No se encontró ningún movimiento con id {id_movimiento}.")
+        return
+
+    # fila_actual es una tupla: (id, fecha, tipo, categoria, descripcion, monto)
+    # Nos interesa solo la fecha, que es el segundo elemento (índice 1).
+    fecha_original = fila_actual[1]
+
+    actualizar_fila(id_movimiento, fecha_original, tipo, categoria, descripcion, monto)
+    print(f"✅ Movimiento {id_movimiento} actualizado.")
+
+
+def obtener_historial(limite=10):
+    """
+    Ahora esto es mucho más simple que la versión de Sheets: ya no
+    tenemos que calcular "en qué fila de la hoja está esto" a mano
+    (indice + 2, etc.) — PostgreSQL nos da el id REAL de cada fila
+    directamente, así que solo hay que darle formato a cada tupla
+    como diccionario.
+
+    Mantenemos la llave "fila_numero" en el diccionario (aunque
+    ahora es el id real de la base de datos) para no tener que
+    modificar app.py ni los templates HTML — siguen funcionando
+    exactamente igual sin cambios.
+    """
+    filas = leer_todas_las_filas()  # ya vienen ordenadas por fecha ASC
+
+    historial = []
+    for fila in filas:
+        id_mov, fecha, tipo, categoria, descripcion, monto = fila
+        historial.append({
+            "fila_numero": id_mov,
+            "fecha": fecha.isoformat(),  # PostgreSQL devuelve un objeto date, lo convertimos a texto
+            "tipo": tipo,
+            "categoria": categoria,
+            "descripcion": descripcion,
+            "monto": float(monto),  # NUMERIC llega como Decimal, lo pasamos a float
+        })
+
+    # Igual que antes: invertimos para mostrar lo más reciente primero,
+    # y nos quedamos solo con los primeros "limite".
+    return historial[::-1][:limite]
 
 
 def calcular_balance():
     """
-    Recorre TODAS las filas de la hoja y calcula:
-    - total de ingresos
-    - total de gastos
-    - balance = ingresos - gastos
-
-    Devuelve los tres valores como una tupla (varios valores juntos).
+    Ya no sumamos en un bucle de Python — obtener_balance() le pide
+    a PostgreSQL que haga la suma directamente con SQL, y aquí solo
+    calculamos la resta final.
     """
-    filas = leer_todas_las_filas()
-
-    # filas[0] es el encabezado ("Fecha", "Tipo", ...), no un dato real.
-    # filas[1:] significa "todas las filas EXCEPTO la primera" — así
-    # nos saltamos el encabezado al hacer los cálculos.
-    datos = filas[1:]
-
-    total_ingresos = 0
-    total_gastos = 0
-
-    for fila in datos:
-        # Desempaquetamos cada fila en variables con nombre, más
-        # legible que usar fila[0], fila[1], etc.
-        fecha, tipo, categoria, descripcion, monto = fila
-
-        # El monto llega como texto (string) desde Sheets, por eso
-        # hay que convertirlo a número con float() antes de sumarlo.
-        monto = float(monto)
-
-        if tipo == "Ingreso":
-            total_ingresos += monto
-        elif tipo == "Gasto":
-            total_gastos += monto
-
+    total_ingresos, total_gastos = obtener_balance()
+    total_ingresos = float(total_ingresos)
+    total_gastos = float(total_gastos)
     balance = total_ingresos - total_gastos
     return total_ingresos, total_gastos, balance
 
 
 def gastos_por_categoria():
     """
-    Agrupa SOLO los gastos (ignora ingresos) y suma el total por
-    cada categoría. Es el mismo concepto que un GROUP BY + SUM en
-    SQL, o un groupby() de pandas, pero aquí lo hacemos "a mano"
-    con un diccionario — así entiendes qué pasa por dentro cuando
-    esas herramientas hacen la magia por ti.
-
-    Devuelve un diccionario como:
-    {"Comida": 150000, "Transporte": 80000, "Celular": 45000}
+    Igual: ya no agrupamos a mano con un diccionario en Python,
+    PostgreSQL nos entrega los totales ya agrupados con GROUP BY.
+    Solo convertimos el resultado a un diccionario de Python.
     """
-    filas = leer_todas_las_filas()
-    datos = filas[1:]
-
-    totales = {}  # diccionario vacío donde iremos acumulando
-
-    for fila in datos:
-        fecha, tipo, categoria, descripcion, monto = fila
-
-        if tipo != "Gasto":
-            continue  # "continue" salta a la siguiente vuelta del
-                       # bucle sin ejecutar el resto — así ignoramos
-                       # los ingresos sin necesitar un if/else largo
-
-        monto = float(monto)
-
-        # .get(categoria, 0) busca esa categoría en el diccionario;
-        # si todavía no existe, usa 0 como valor por defecto en vez
-        # de dar error. Así podemos sumar directamente sin tener que
-        # revisar antes "¿ya existe esta categoría o no?".
-        totales[categoria] = totales.get(categoria, 0) + monto
-
-    return totales
-
-
-def obtener_historial(limite=10):
-    """
-    Devuelve los últimos 'limite' movimientos, del más reciente al
-    más antiguo, listos para mostrar en pantalla o en la web.
-
-    Cada movimiento se devuelve como un diccionario (no una lista
-    simple) para que sea más legible acceder a sus datos: en vez de
-    fila[0], fila[1]..., podrás usar movimiento["fecha"],
-    movimiento["monto"], etc.
-
-    OJO: también guardamos "fila_numero" — la posición REAL de esa
-    fila dentro de la Google Sheet (contando el encabezado como
-    fila 1). Todavía no lo usamos para nada, pero lo vamos a
-    necesitar en el próximo paso, cuando agreguemos "editar" y
-    "borrar" — para eso hay que saber EXACTAMENTE qué fila tocar.
-    """
-    filas = leer_todas_las_filas()
-    datos = filas[1:]  # nos saltamos el encabezado
-
-    historial = []
-    for indice, fila in enumerate(datos):
-        # enumerate() nos da, en cada vuelta del bucle, tanto la
-        # POSICIÓN (indice: 0, 1, 2...) como el VALOR (fila).
-        # La fila real en Sheets es indice + 2, porque:
-        #   - Sheets empieza a contar en 1, no en 0 (+1)
-        #   - la fila 1 es el encabezado, así que los datos
-        #     empiezan en la fila 2 (+1 otra vez)
-        fecha, tipo, categoria, descripcion, monto = fila
-        historial.append({
-            "fila_numero": indice + 2,
-            "fecha": fecha,
-            "tipo": tipo,
-            "categoria": categoria,
-            "descripcion": descripcion,
-            "monto": float(monto),
-        })
-
-    # [::-1] invierte el orden de la lista (Sheets nos da lo más
-    # viejo primero; para un historial, queremos lo más reciente
-    # arriba, que es como esperamos ver un extracto bancario).
-    historial_reciente_primero = historial[::-1]
-
-    # Slicing de nuevo: nos quedamos solo con los primeros "limite"
-    # elementos de esa lista ya invertida.
-    return historial_reciente_primero[:limite]
+    resultados = obtener_totales_por_categoria()
+    return {categoria: float(total) for categoria, total in resultados}
 
 
 def mostrar_resumen():
-    """
-    Imprime en pantalla un resumen legible del estado de la billetera.
-    Separamos esto de calcular_balance() porque una función calcula
-    (devuelve números) y la otra solo se encarga de mostrarlos bonito.
-    Así, más adelante, si quieres mostrar el resumen en una página web
-    en vez de la consola, reutilizas calcular_balance() sin tocarlo.
-    """
     ingresos, gastos, balance = calcular_balance()
     print("\n📊 RESUMEN DE TU BILLETERA")
     print(f"   Ingresos totales: ${ingresos:,.0f}")
@@ -207,19 +130,6 @@ def mostrar_resumen():
 
 
 def menu():
-    """
-    Menú interactivo por consola. Le muestra opciones al usuario,
-    lee lo que escribe con input(), y según la opción llama a la
-    función correspondiente.
-
-    input() SIEMPRE devuelve texto (string), aunque el usuario
-    escriba un número — por eso más abajo convertimos con float()
-    cuando pedimos el monto.
-
-    El bucle "while True" hace que el menú se repita indefinidamente
-    hasta que el usuario elija la opción de salir (rompemos el bucle
-    con la palabra clave "break").
-    """
     while True:
         print("\n===== BILLETERA PERSONAL =====")
         print("1. Registrar un gasto")
@@ -232,13 +142,13 @@ def menu():
         opcion = input("Elige una opción (1-7): ")
 
         if opcion == "1":
-            categoria = input("Categoría (ej. Comida, Transporte): ")
+            categoria = input("Categoría: ")
             descripcion = input("Descripción: ")
             monto = float(input("Monto: "))
             registrar_gasto(categoria, descripcion, monto)
 
         elif opcion == "2":
-            categoria = input("Categoría (ej. Salario, Bono): ")
+            categoria = input("Categoría: ")
             descripcion = input("Descripción: ")
             monto = float(input("Monto: "))
             registrar_ingreso(categoria, descripcion, monto)
@@ -258,29 +168,24 @@ def menu():
                 )
 
         elif opcion == "5":
-            numero_fila = int(input("Número de fila a editar (lo ves en el historial): "))
+            id_movimiento = int(input("ID del movimiento a editar: "))
             tipo = input("Nuevo tipo (Gasto/Ingreso): ")
             categoria = input("Nueva categoría: ")
             descripcion = input("Nueva descripción: ")
             monto = float(input("Nuevo monto: "))
-            editar_movimiento(numero_fila, tipo, categoria, descripcion, monto)
+            editar_movimiento(id_movimiento, tipo, categoria, descripcion, monto)
 
         elif opcion == "6":
-            numero_fila = int(input("Número de fila a eliminar (lo ves en el historial): "))
-            eliminar_movimiento(numero_fila)
+            id_movimiento = int(input("ID del movimiento a eliminar: "))
+            eliminar_movimiento(id_movimiento)
 
         elif opcion == "7":
             print("¡Hasta luego! 👋")
             break
 
         else:
-            # Manejo simple de errores: si el usuario escribe algo
-            # que no es 1, 2, 3 o 4, se lo avisamos y el bucle
-            # vuelve a mostrar el menú (no se rompe el programa).
             print("Opción no válida, intenta de nuevo.")
 
 
-# Este bloque ahora solo arranca el menú interactivo — ya no
-# registra nada automáticamente al correr el script.
 if __name__ == "__main__":
     menu()
