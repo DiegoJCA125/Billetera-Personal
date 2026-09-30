@@ -1,6 +1,4 @@
 """
-db.py
-------
 Reemplaza a sheets.py y auth.py por completo. Ya no necesitamos
 autenticarnos con Google ni hablar HTTP con una API externa — nos
 conectamos DIRECTAMENTE a la base de datos con una librería.
@@ -16,11 +14,8 @@ esa llamada.
 
 import os
 import psycopg2
+from psycopg2 import errors #PERMITE IDENTIFICAR ERRORES ESPECIFICOS EN EL POSTGRESQL
 
-# DATABASE_URL sigue el mismo patrón que ya conoces de APP_USERNAME/
-# APP_PASSWORD: se lee de una variable de entorno, nunca escrita en
-# el código. El formato de esta URL es:
-# postgresql://usuario:contraseña@host:puerto/nombre_basededatos
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 
@@ -73,18 +68,27 @@ def agregar_fila(fecha, tipo, categoria, descripcion, monto):
     escribir datos maliciosos que se ejecuten como comandos SQL
     reales. Los placeholders %s evitan ese riesgo por completo.
     """
-    with obtener_conexion() as conexion:
-        with conexion.cursor() as cursor:
-            cursor.execute(
-                "INSERT INTO movimientos (fecha, tipo, categoria, descripcion, monto) "
-                "VALUES (%s, %s, %s, %s, %s)",
-                (fecha, tipo, categoria, descripcion, monto),
-            )
-        # conexion.commit() "confirma" los cambios de forma permanente.
-        # Sin esto, el INSERT quedaría pendiente y se perdería al
-        # cerrar la conexión. Vive fuera del cursor, sobre la conexión.
-        conexion.commit()
-
+    try:
+        # ABRIMOS UNA CONEXION CON POSTGRESQL
+        with obtener_conexion() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO movimientos (fecha, tipo, categoria, descripcion, monto) "
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (fecha, tipo, categoria, descripcion, monto),
+                )
+            # conexion.commit() "confirma" los cambios de forma permanente.
+            # Sin esto, el INSERT quedaría pendiente y se perdería al
+            # cerrar la conexión. Vive fuera del cursor, sobre la conexión.
+            conexion.commit()
+        # SI EL MOVIMIENTO SE GUARDO CORRECTAMENTE
+        return True
+    
+    except Exception as error:
+        # SI POSTGRESQL ENCUENTRA UN PROBLEM, SE CAPTURARA EL ERROR PARA EVITAR QUE LA APLICACION COLAPSE
+        print(f"ERROR AL AGREGAR MOVIMIENTO: {error}")
+        # COLOCAREMOS QWUE LA OPERACION NO FUE EXITOSA
+        return False
 
 def actualizar_fila(id_movimiento, fecha, tipo, categoria, descripcion, monto):
     """Equivalente a sheets.py: actualizar_fila(), pero usando el id real."""
