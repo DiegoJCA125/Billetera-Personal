@@ -158,6 +158,75 @@ def obtener_gastos_por_mes():
     ]
 
 
+def obtener_resumen_mensual():
+    """
+    Resume los ingresos, gastos y balance de cada mes.
+
+    En vez de ejecutar consultas separadas, calculamos
+    ingresos y gastos en una sola consulta SQL.
+    """
+
+    # Abrimos la conexión con PostgreSQL.
+    with obtener_conexion() as conexion:
+        with conexion.cursor() as cursor:
+
+            # Agrupamos los movimientos por año y mes.
+            # CASE permite sumar ingresos y gastos por separado.
+            cursor.execute("""
+                SELECT
+                    EXTRACT(YEAR FROM fecha)::INTEGER AS anio,
+                    EXTRACT(MONTH FROM fecha)::INTEGER AS mes,
+
+                    COALESCE(
+                        SUM(CASE
+                            WHEN tipo = 'Ingreso' THEN monto
+                            ELSE 0
+                        END), 0
+                    ) AS total_ingresos,
+
+                    COALESCE(
+                        SUM(CASE
+                            WHEN tipo = 'Gasto' THEN monto
+                            ELSE 0
+                        END), 0
+                    ) AS total_gastos
+
+                FROM movimientos
+
+                GROUP BY
+                    EXTRACT(YEAR FROM fecha),
+                    EXTRACT(MONTH FROM fecha)
+
+                ORDER BY anio ASC, mes ASC
+            """)
+
+            # Recuperamos todos los meses calculados.
+            resultados = cursor.fetchall()
+
+    # Convertimos las filas en diccionarios fáciles de usar.
+    resumen = []
+
+    for anio, mes, ingresos, gastos in resultados:
+
+        # Convertimos Decimal a float para trabajar cómodamente
+        # con los valores desde Python y los gráficos.
+        ingresos = float(ingresos)
+        gastos = float(gastos)
+
+        # El balance mensual es la diferencia entre ingresos y gastos.
+        balance = ingresos - gastos
+
+        resumen.append({
+            "anio": anio,
+            "mes": mes,
+            "total_ingresos": ingresos,
+            "total_gastos": gastos,
+            "balance": balance,
+        })
+
+    return resumen
+
+
 if __name__ == "__main__":
 
     # Ejecutamos nuestra función de análisis.
@@ -180,4 +249,18 @@ if __name__ == "__main__":
         print(
             f"{registro['anio']}-{registro['mes']:02d}: "
             f"${registro['total_gastado']:,.2f}"
+        )
+
+    # Consultamos el resumen financiero de cada mes.
+    resumen_mensual = obtener_resumen_mensual()
+
+    print("\n===== RESUMEN FINANCIERO MENSUAL =====")
+
+    # Mostramos ingresos, gastos y balance de cada periodo.
+    for registro in resumen_mensual:
+        print(
+            f"{registro['anio']}-{registro['mes']:02d} | "
+            f"Ingresos: ${registro['total_ingresos']:,.2f} | "
+            f"Gastos: ${registro['total_gastos']:,.2f} | "
+            f"Balance: ${registro['balance']:,.2f}"
         )
