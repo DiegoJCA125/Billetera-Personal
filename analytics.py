@@ -113,6 +113,51 @@ def obtener_gastos_por_categoria():
         for categoria, total in resultados
     }
 
+def obtener_gastos_por_mes():
+    """
+    Calcula el total de gastos de cada mes.
+
+    PostgreSQL agrupa los movimientos por año y mes.
+    Así podemos comparar periodos sin mezclar, por ejemplo,
+    enero de un año con enero de otro.
+    """
+
+    # Abrimos la conexión con PostgreSQL.
+    with obtener_conexion() as conexion:
+
+        # Creamos el cursor para ejecutar SQL.
+        with conexion.cursor() as cursor:
+
+            # Extraemos el año y el mes de la fecha,
+            # sumamos los gastos y ordenamos cronológicamente.
+            cursor.execute("""
+                SELECT
+                    EXTRACT(YEAR FROM fecha)::INTEGER AS anio,
+                    EXTRACT(MONTH FROM fecha)::INTEGER AS mes,
+                    SUM(monto) AS total_gastado
+                FROM movimientos
+                WHERE tipo = 'Gasto'
+                GROUP BY
+                    EXTRACT(YEAR FROM fecha),
+                    EXTRACT(MONTH FROM fecha)
+                ORDER BY anio ASC, mes ASC
+            """)
+
+            # Recuperamos los resultados de la consulta.
+            resultados = cursor.fetchall()
+
+    # Devolvemos una lista de diccionarios.
+    # Cada diccionario representa un mes.
+    return [
+        {
+            "anio": anio,
+            "mes": mes,
+            "total_gastado": float(total),
+        }
+        for anio, mes, total in resultados
+    ]
+
+
 if __name__ == "__main__":
 
     # Ejecutamos nuestra función de análisis.
@@ -124,3 +169,15 @@ if __name__ == "__main__":
     print(f"Ingresos: ${ingresos:,.2f}")
     print(f"Gastos:   ${gastos:,.2f}")
     print(f"Balance:  ${balance:,.2f}")
+    
+    # Consultamos los gastos agrupados por mes.
+    gastos_mensuales = obtener_gastos_por_mes()
+
+    print("\n===== GASTOS POR MES =====")
+
+    # Recorremos cada mes y mostramos su total.
+    for registro in gastos_mensuales:
+        print(
+            f"{registro['anio']}-{registro['mes']:02d}: "
+            f"${registro['total_gastado']:,.2f}"
+        )
