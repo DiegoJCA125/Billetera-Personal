@@ -77,6 +77,42 @@ def obtener_resumen_financiero():
 # PRUEBA DEL ARCHIVO
 # ---------------------------------------------------------
 
+def obtener_gastos_por_categoria():
+    """
+    Calcula cuánto dinero se ha gastado en cada categoría.
+
+    Esta función pertenece a analytics.py porque su objetivo
+    es analizar los datos, no registrar ni modificar movimientos.
+    """
+
+    # Abrimos la conexión con PostgreSQL.
+    with obtener_conexion() as conexion:
+
+        # Creamos un cursor para ejecutar la consulta SQL.
+        with conexion.cursor() as cursor:
+
+            # PostgreSQL agrupa los gastos por categoría y suma
+            # los montos de cada grupo.
+            cursor.execute("""
+                SELECT
+                    categoria,
+                    SUM(monto) AS total_gastado
+                FROM movimientos
+                WHERE tipo = 'Gasto'
+                GROUP BY categoria
+                ORDER BY total_gastado DESC
+            """)
+
+            # Obtenemos todas las categorías con sus respectivos totales.
+            resultados = cursor.fetchall()
+
+    # Convertimos los resultados en un diccionario.
+    # Ejemplo: {"Alimentación": 800000, "Transporte": 450000}
+    return {
+        categoria: float(total)
+        for categoria, total in resultados
+    }
+
 if __name__ == "__main__":
 
     # Ejecutamos nuestra función de análisis.

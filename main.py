@@ -12,8 +12,9 @@ separado responsabilidades desde el principio: pudimos cambiar POR
 COMPLETO la forma en que se guardan los datos sin tocar la interfaz
 web para nada.
 """
-
 from datetime import date
+
+# Importamos de db.py las funciones para trabajar con movimientos.
 from db import (
     leer_todas_las_filas,
     agregar_fila,
@@ -21,9 +22,12 @@ from db import (
     borrar_fila,
     obtener_fila_por_id,
     obtener_balance,
-    obtener_totales_por_categoria,
 )
 
+# Importamos de analytics.py las funciones de análisis financiero.
+from analytics import (
+    obtener_gastos_por_categoria,
+)
 
 def registrar_movimiento(tipo, categoria, descripcion, monto):
     fecha_hoy = date.today().isoformat()
@@ -111,14 +115,21 @@ def calcular_balance():
     return total_ingresos, total_gastos, balance
 
 
+
 def gastos_por_categoria():
     """
-    Igual: ya no agrupamos a mano con un diccionario en Python,
-    PostgreSQL nos entrega los totales ya agrupados con GROUP BY.
-    Solo convertimos el resultado a un diccionario de Python.
+    Devuelve los gastos agrupados por categoría.
+
+    Mantenemos este nombre porque otras partes de la aplicación
+    podrían utilizarlo, por ejemplo las rutas de Flask o los gráficos.
     """
-    resultados = obtener_totales_por_categoria()
-    return {categoria: float(total) for categoria, total in resultados}
+
+    # Delegamos el análisis a analytics.py.
+    resultados = obtener_gastos_por_categoria()
+
+    # La función analítica ya devuelve el diccionario preparado.
+    return resultados
+
 
 
 def mostrar_resumen():
