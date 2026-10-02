@@ -1,6 +1,6 @@
 # 💰 Billetera Personal
 
-Aplicación web para el control de finanzas personales, construida como proyecto de aprendizaje de Data Engineering. Permite registrar ingresos y gastos desde el celular o el computador, con los datos almacenados en tiempo real en Google Sheets.
+Aplicación web para el control de finanzas personales, construida como proyecto de aprendizaje de Data Engineering. Permite registrar ingresos y gastos desde el celular o el computador, con los datos almacenados en PostgreSQL.
 
 🔗 **Demo en vivo:** https://portafolio-dataengineering.onrender.com/
 *(protegido con usuario y contraseña — contáctame si quieres una demo)*
@@ -12,16 +12,16 @@ Aplicación web para el control de finanzas personales, construida como proyecto
 - Historial de los últimos movimientos
 - Edición y eliminación de registros
 - Gráfica de gastos por categoría (Chart.js)
+- **Resumen financiero mensual**, con evolución de ingresos/gastos/balance mes a mes
 - Autenticación con usuario y contraseña
 - Diseño responsive, usable desde el celular
-- Datos almacenados en Google Sheets (accesibles y editables también desde ahí)
 
 ## 🛠️ Stack técnico
 
 | Capa | Tecnología |
 |---|---|
 | Backend | Python, Flask |
-| Almacenamiento | Google Sheets API (vía Service Account) |
+| Almacenamiento | PostgreSQL |
 | Frontend | HTML, CSS, Jinja2, Chart.js |
 | Autenticación | HTTP Basic Auth |
 | Despliegue | Render (gunicorn) |
@@ -36,69 +36,69 @@ Navegador (celular o PC)
    Flask (app.py)  ──── HTTP Basic Auth
         │
         ▼
-  main.py (lógica de negocio)
+  main.py (lógica de negocio: registrar, editar, eliminar)
+        │
+        ├──▶ db.py (operaciones CRUD sobre PostgreSQL)
+        │
+        └──▶ analytics.py (TODO cálculo/análisis: balance,
+                            gastos por categoría, resumen mensual)
         │
         ▼
-  sheets.py (API de Google Sheets)
-        │
-        ▼
-  auth.py (autenticación con Google:
-           Service Account en producción,
-           credenciales locales en desarrollo)
-        │
-        ▼
-   Google Sheets (base de datos)
+   PostgreSQL (base de datos)
 ```
 
-El proyecto sigue el principio de **separación de responsabilidades**: cada archivo tiene una sola tarea.
+El proyecto separa responsabilidades en 3 capas con una regla estricta:
 
-- `auth.py` → autenticación con la API de Google
-- `sheets.py` → operaciones directas sobre la hoja de cálculo (leer, agregar, editar, borrar filas)
-- `main.py` → reglas de negocio (qué es un gasto, cómo se calcula el balance, cómo se agrupan las categorías)
+- `db.py` → únicamente operaciones CRUD (crear, leer, actualizar, borrar filas)
+- `analytics.py` → únicamente cálculos y análisis sobre los datos (balance, totales por categoría, resumen mensual). Ningún cálculo vive fuera de este archivo.
+- `main.py` → reglas de negocio, conecta ambas capas y expone una sola interfaz limpia a `app.py`
 - `app.py` → servidor web e interfaz de usuario
+
+> **Nota de evolución:** el proyecto empezó usando Google Sheets como almacenamiento (ver historial de commits). Se migró a PostgreSQL para ganar robustez, validaciones de datos reales (tipos, restricciones) y capacidad real de análisis con SQL (`GROUP BY`, `EXTRACT`, agregaciones).
 
 ## 🔒 Seguridad
 
-- Las credenciales de Google (Service Account) y las contraseñas de la app se manejan mediante **variables de entorno**, nunca quedan escritas en el código ni se suben al repositorio (ver `.gitignore`).
+- Las credenciales de la base de datos y las contraseñas de la app se manejan mediante **variables de entorno**, nunca quedan escritas en el código ni se suben al repositorio.
 - Todas las rutas que exponen o modifican datos requieren autenticación (`@requiere_login`).
 
 ## 🚀 Cómo correrlo localmente
 
-1. Clona el repositorio y entra a la carpeta `BilleteraPersonal`.
-2. Crea un entorno virtual e instala las dependencias:
+1. Clona el repositorio e instala las dependencias:
    ```bash
    python -m venv venv
    venv\Scripts\activate
    pip install -r requirements.txt
    ```
-3. Crea una cuenta de servicio de Google Cloud con acceso a la Google Sheets API, comparte tu hoja de cálculo con su correo, y guarda la llave como `service_account.json` en la raíz del proyecto.
-4. Define las variables de entorno de autenticación:
+2. Crea una base de datos PostgreSQL local y corre `schema.sql` para crear la tabla `movimientos`.
+3. Define las variables de entorno:
    ```powershell
+   $env:DATABASE_URL="postgresql://usuario:contraseña@localhost:5432/tu_base_de_datos"
    $env:APP_USERNAME="tu_usuario"
    $env:APP_PASSWORD="tu_contraseña"
    ```
-5. Corre la aplicación:
+4. Corre la aplicación:
    ```bash
    python app.py
    ```
-6. Abre `http://localhost:5000` en tu navegador.
+5. Abre `http://localhost:5000` en tu navegador.
 
 ## 📚 Qué aprendí construyendo esto
 
-- Autenticación OAuth2 y migración a Service Accounts para entornos de producción
-- Consumo de APIs REST de Google (Sheets) desde Python
+- Diseño de schemas SQL con restricciones reales (`CHECK`, `NOT NULL`, tipos de datos)
+- Consultas de agregación (`SUM`, `GROUP BY`, `EXTRACT`) para análisis financiero
+- Separación estricta de responsabilidades: CRUD vs. análisis vs. lógica de negocio
+- Migración de datos entre sistemas de almacenamiento distintos sin perder historial
 - Desarrollo web con Flask: rutas, plantillas Jinja2, formularios GET/POST
 - Manejo seguro de credenciales con variables de entorno
-- Despliegue de aplicaciones Python en la nube (Render, gunicorn, Procfile)
-- Visualización de datos con Chart.js
-- Buenas prácticas de control de versiones con Git (commits pequeños y frecuentes)
+- Despliegue de aplicaciones Python en la nube (Render, gunicorn)
+- Visualización de datos con Chart.js (gráficas de categoría y de evolución temporal)
 
 ## 🔮 Posibles mejoras futuras
 
 - Filtros de historial por fecha o categoría
 - Exportar reportes mensuales en PDF
 - Notificaciones cuando el gasto mensual supere cierto límite
-- Multi-usuario (cada persona con su propia hoja)
+- Multi-usuario (cada persona con sus propios datos)
 
 ---
 
