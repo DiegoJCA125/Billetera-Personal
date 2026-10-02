@@ -1,33 +1,28 @@
 """
 main.py
 --------
-Misma lógica de negocio de siempre, pero ahora hablando con db.py
-(PostgreSQL) en vez de sheets.py (Google Sheets API).
-
-Fíjate en algo importante: las funciones que usa app.py (Flask) se
-llaman EXACTAMENTE igual que antes (registrar_gasto, calcular_balance,
-obtener_historial, etc.) — por eso app.py y los templates HTML no
-necesitan casi ningún cambio. Esto es la ventaja real de haber
-separado responsabilidades desde el principio: pudimos cambiar POR
-COMPLETO la forma en que se guardan los datos sin tocar la interfaz
-web para nada.
+Lógica de negocio. Las operaciones CRUD vienen de db.py; TODO cálculo
+o análisis viene de analytics.py — sin excepciones, para no tener dos
+caminos distintos calculando lo mismo.
 """
+
 from datetime import date
 
-# Importamos de db.py las funciones para trabajar con movimientos.
 from db import (
     leer_todas_las_filas,
     agregar_fila,
     actualizar_fila,
     borrar_fila,
     obtener_fila_por_id,
-    obtener_balance,
 )
 
-# Importamos de analytics.py las funciones de análisis financiero.
+# Todo lo que sea "calcular" o "analizar" viene de analytics.py.
 from analytics import (
     obtener_gastos_por_categoria,
+    obtener_resumen_financiero,
+    obtener_resumen_mensual,
 )
+
 
 def registrar_movimiento(tipo, categoria, descripcion, monto):
     fecha_hoy = date.today().isoformat()
@@ -49,87 +44,58 @@ def eliminar_movimiento(id_movimiento):
 
 
 def editar_movimiento(id_movimiento, tipo, categoria, descripcion, monto):
-    """
-    Igual que antes: conservamos la fecha ORIGINAL del movimiento en
-    vez de reemplazarla por la de hoy. Ahora, en vez de recorrer todo
-    el historial buscando el id (como hacíamos con la lista de
-    Sheets), pedimos DIRECTAMENTE esa fila por su id con una consulta
-    SQL — mucho más eficiente.
-    """
     fila_actual = obtener_fila_por_id(id_movimiento)
 
     if fila_actual is None:
         print(f"⚠️ No se encontró ningún movimiento con id {id_movimiento}.")
         return
 
-    # fila_actual es una tupla: (id, fecha, tipo, categoria, descripcion, monto)
-    # Nos interesa solo la fecha, que es el segundo elemento (índice 1).
     fecha_original = fila_actual[1]
-
     actualizar_fila(id_movimiento, fecha_original, tipo, categoria, descripcion, monto)
     print(f"✅ Movimiento {id_movimiento} actualizado.")
 
 
 def obtener_historial(limite=10):
-    """
-    Ahora esto es mucho más simple que la versión de Sheets: ya no
-    tenemos que calcular "en qué fila de la hoja está esto" a mano
-    (indice + 2, etc.) — PostgreSQL nos da el id REAL de cada fila
-    directamente, así que solo hay que darle formato a cada tupla
-    como diccionario.
-
-    Mantenemos la llave "fila_numero" en el diccionario (aunque
-    ahora es el id real de la base de datos) para no tener que
-    modificar app.py ni los templates HTML — siguen funcionando
-    exactamente igual sin cambios.
-    """
-    filas = leer_todas_las_filas()  # ya vienen ordenadas por fecha ASC
+    filas = leer_todas_las_filas()
 
     historial = []
     for fila in filas:
         id_mov, fecha, tipo, categoria, descripcion, monto = fila
         historial.append({
             "fila_numero": id_mov,
-            "fecha": fecha.isoformat(),  # PostgreSQL devuelve un objeto date, lo convertimos a texto
+            "fecha": fecha.isoformat(),
             "tipo": tipo,
             "categoria": categoria,
             "descripcion": descripcion,
-            "monto": float(monto),  # NUMERIC llega como Decimal, lo pasamos a float
+            "monto": float(monto),
         })
 
-    # Igual que antes: invertimos para mostrar lo más reciente primero,
-    # y nos quedamos solo con los primeros "limite".
     return historial[::-1][:limite]
 
 
 def calcular_balance():
     """
-    Ya no sumamos en un bucle de Python — obtener_balance() le pide
-    a PostgreSQL que haga la suma directamente con SQL, y aquí solo
-    calculamos la resta final.
+    ANTES: llamaba a db.obtener_balance() directamente — un segundo
+    camino para el mismo cálculo que ya existía en analytics.py.
+    AHORA: delega por completo a analytics.obtener_resumen_financiero(),
+    que es la única fuente de verdad para este número.
     """
-    total_ingresos, total_gastos = obtener_balance()
-    total_ingresos = float(total_ingresos)
-    total_gastos = float(total_gastos)
-    balance = total_ingresos - total_gastos
-    return total_ingresos, total_gastos, balance
-
+    total_ingresos, total_gastos, balance = obtener_resumen_financiero()
+    return float(total_ingresos), float(total_gastos), float(balance)
 
 
 def gastos_por_categoria():
+    return obtener_gastos_por_categoria()
+
+
+def resumen_mensual():
     """
-    Devuelve los gastos agrupados por categoría.
-
-    Mantenemos este nombre porque otras partes de la aplicación
-    podrían utilizarlo, por ejemplo las rutas de Flask o los gráficos.
+    NUEVO: expone obtener_resumen_mensual() de analytics.py al resto
+    de la app (consola y Flask). Devuelve una lista de diccionarios,
+    uno por mes, cada uno con anio, mes, total_ingresos, total_gastos
+    y balance.
     """
-
-    # Delegamos el análisis a analytics.py.
-    resultados = obtener_gastos_por_categoria()
-
-    # La función analítica ya devuelve el diccionario preparado.
-    return resultados
-
+    return obtener_resumen_mensual()
 
 
 def mostrar_resumen():
@@ -138,6 +104,30 @@ def mostrar_resumen():
     print(f"   Ingresos totales: ${ingresos:,.0f}")
     print(f"   Gastos totales:   ${gastos:,.0f}")
     print(f"   Balance actual:   ${balance:,.0f}")
+
+
+MESES = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+]
+
+
+def mostrar_resumen_mensual():
+    datos = resumen_mensual()
+
+    if not datos:
+        print("\nTodavía no hay suficientes movimientos para un resumen mensual.")
+        return
+
+    print("\n📅 RESUMEN FINANCIERO MENSUAL")
+    for registro in datos:
+        nombre_mes = MESES[registro["mes"] - 1]
+        print(
+            f"   {nombre_mes} {registro['anio']} | "
+            f"Ingresos: ${registro['total_ingresos']:,.0f} | "
+            f"Gastos: ${registro['total_gastos']:,.0f} | "
+            f"Balance: ${registro['balance']:,.0f}"
+        )
 
 
 def menu():
@@ -149,8 +139,9 @@ def menu():
         print("4. Ver historial")
         print("5. Editar un movimiento")
         print("6. Eliminar un movimiento")
-        print("7. Salir")
-        opcion = input("Elige una opción (1-7): ")
+        print("7. Ver resumen mensual")
+        print("8. Salir")
+        opcion = input("Elige una opción (1-8): ")
 
         if opcion == "1":
             categoria = input("Categoría: ")
@@ -191,6 +182,9 @@ def menu():
             eliminar_movimiento(id_movimiento)
 
         elif opcion == "7":
+            mostrar_resumen_mensual()
+
+        elif opcion == "8":
             print("¡Hasta luego! 👋")
             break
 
