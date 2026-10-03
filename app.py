@@ -21,10 +21,15 @@ from main import (
 )
 
 app = Flask(__name__)
+#LA APLICACION NO DEBE DE INICIAR CON CREDENCIALES PREDETERMINADOS
+USUARIO_APP = os.environ.get("APP_USERNAME")
+CONTRASENA_APP = os.environ.get("APP_PASSWORD")
 
-USUARIO_APP = os.environ.get("APP_USERNAME", "admin")
-CONTRASENA_APP = os.environ.get("APP_PASSWORD", "cambiame123")
-
+#FALLA EXPLICITAMENTE SI FALTA ALGUN CREDENCIAL
+if not USUARIO_APP or not CONTRASENA_APP:
+    raise RuntimeError(
+        "Debes configurar APP_USERNAME y APP_PASSWORD."
+    )
 
 def credenciales_validas(usuario, contrasena):
     return usuario == USUARIO_APP and contrasena == CONTRASENA_APP

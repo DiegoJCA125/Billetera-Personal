@@ -140,60 +140,6 @@ def obtener_fila_por_id(id_movimiento):
 
     return fila
 
-
-def obtener_balance():
-    """
-    En vez de traer TODAS las filas y sumarlas en Python (como
-    hacíamos con calcular_balance() en la versión de Sheets), le
-    pedimos a PostgreSQL que haga la suma DIRECTAMENTE con SQL.
-
-    CASE WHEN ... THEN ... ELSE ... END es el "if" de SQL: por cada
-    fila, si el tipo es 'Ingreso' suma el monto, si no, suma 0 —
-    así el SUM() solo termina contando lo que nos interesa en cada
-    columna calculada.
-
-    COALESCE(algo, 0) devuelve 0 en vez de NULL cuando la tabla está
-    vacía (SUM() de cero filas da NULL, no 0, y eso rompería cálculos
-    después si no lo manejamos).
-    """
-    with obtener_conexion() as conexion:
-        with conexion.cursor() as cursor:
-            cursor.execute("""
-                SELECT
-                    COALESCE(SUM(CASE WHEN tipo = 'Ingreso' THEN monto ELSE 0 END), 0),
-                    COALESCE(SUM(CASE WHEN tipo = 'Gasto' THEN monto ELSE 0 END), 0)
-                FROM movimientos
-            """)
-            total_ingresos, total_gastos = cursor.fetchone()
-
-    return total_ingresos, total_gastos
-
-
-def obtener_totales_por_categoria():
-    """
-    El equivalente en SQL de lo que antes hacías con un diccionario
-    y un bucle for en Python (gastos_por_categoria en main.py).
-
-    GROUP BY categoria le dice a PostgreSQL: "junta todas las filas
-    que tengan la misma categoría, y aplícales SUM() a cada grupo por
-    separado". Es exactamente el mismo concepto de un GROUP BY que ya
-    viste en tu curso de SQL — pero aquí es la base de datos la que
-    hace el trabajo, no tu código.
-    """
-    with obtener_conexion() as conexion:
-        with conexion.cursor() as cursor:
-            cursor.execute("""
-                SELECT categoria, SUM(monto)
-                FROM movimientos
-                WHERE tipo = 'Gasto'
-                GROUP BY categoria
-                ORDER BY SUM(monto) DESC
-            """)
-            resultados = cursor.fetchall()
-
-    return resultados
-
-
 if __name__ == "__main__":
     # Prueba rápida: intenta conectarse y contar cuántas filas hay.
     filas = leer_todas_las_filas()
