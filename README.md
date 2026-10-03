@@ -69,7 +69,10 @@ El proyecto separa responsabilidades en 3 capas con una regla estricta:
    venv\Scripts\activate
    pip install -r requirements.txt
    ```
-2. Crea una base de datos PostgreSQL local y corre `schema.sql` para crear la tabla `movimientos`.
+2. Ejecutar desde la terminal, con PostgreSQL instalado
+   y la conexión a la base de datos configurada.
+   psql "$DATABASE_URL" -f schema.sql
+   
 3. Define las variables de entorno:
    ```powershell
    $env:DATABASE_URL="postgresql://usuario:contraseña@localhost:5432/tu_base_de_datos"
