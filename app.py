@@ -18,6 +18,7 @@ from main import (
     gastos_por_categoria,
     resumen_mensual,
     MESES,
+    validar_movimiento,
 )
 
 app = Flask(__name__)
@@ -70,16 +71,44 @@ def pagina_principal():
 @app.route("/registrar", methods=["POST"])
 @requiere_login
 def procesar_formulario():
+    # OBTENEMOS LOS DATOS QUE VIENEN DEL FORMULARIO.
     tipo = request.form["tipo"]
     categoria = request.form["categoria"]
     descripcion = request.form["descripcion"]
-    monto = float(request.form["monto"])
 
-    if tipo == "Gasto":
-        registrar_gasto(categoria, descripcion, monto)
-    else:
-        registrar_ingreso(categoria, descripcion, monto)
+    # OBTENEMOS EL MONTO COMO TEXTO PRIMERO.
+    monto = request.form["monto"]
 
+    try:
+        # IMPORTANTE:
+        # Convertimos el monto a número y después lo enviamos
+        # a nuestra función central de validación.
+        monto = float(monto)
+
+        # VALIDAMOS TODOS LOS DATOS ANTES DE GUARDARLOS.
+        # Si algún dato incumple nuestras reglas,
+        # validar_movimiento() lanzará un ValueError.
+        validar_movimiento(
+            tipo,
+            categoria,
+            descripcion,
+            monto,
+        )
+
+        # SI LA VALIDACIÓN FUE EXITOSA,
+        # PROCEDEMOS A GUARDAR EL MOVIMIENTO.
+        if tipo == "Gasto":
+            registrar_gasto(categoria, descripcion, monto)
+        else:
+            registrar_ingreso(categoria, descripcion, monto)
+
+    except ValueError as error:
+        # POR AHORA MOSTRAMOS EL ERROR DIRECTAMENTE.
+        # En el siguiente paso lo convertiremos en un
+        # mensaje amigable dentro de la interfaz.
+        return f"Error de validación: {error}", 400
+
+    # SI Todo salió bien, VOLVEMOS A LA PÁGINA PRINCIPAL.
     return redirect("/")
 
 
