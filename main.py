@@ -1,12 +1,13 @@
 """
 main.py
 --------
-Lógica de negocio. Las operaciones CRUD vienen de db.py; TODO cálculo
+Lógica de negocio. Las operaciones CRUD vienen de db.py; todo cálculo
 o análisis viene de analytics.py — sin excepciones, para no tener dos
 caminos distintos calculando lo mismo.
 """
 
 from datetime import date
+from math import isfinite
 
 from db import (
     leer_todas_las_filas,
@@ -23,10 +24,71 @@ from analytics import (
     obtener_resumen_mensual,
 )
 
+def validar_movimiento(tipo, categoria, descripcion, monto):
+    """
+    Valida los datos de un movimiento ANTES de enviarlos a PostgreSQL.
+
+    Esta función representa nuestra primera capa de calidad de datos:
+    si los datos no cumplen las reglas, ni siquiera intentamos guardarlos.
+    """
+    # VALIDAMOS QUE EL TIPO SEA UNO DE LOS VALORES PERMITIDOS
+    if tipo not in ("Gasto", "Ingreso"):
+        raise ValueError("El tipo de movimiento debe ser 'Gasto' o 'Ingreso'")
+
+    # VALIDA QUE LA CATEOGIRA EXISTE Y NO SEA SOLO ESPACIO
+    if not categoria or not categoria.strip():
+        raise ValueError("La cateogria es obligatoria")
+
+    # POSTGRESQL DEFINE categori COMO VARCHAR(100) POR ESO SE VALIDA A SI MISMO EL LIMITE ANTES DE LLEGAR A LA BASE DE DATOS
+    if len(categoria.strip()) > 100:
+        raise ValueError("La categoria no puede superar los 100 caracteres")
+
+    #VALIDA QUE LA DESCRIPCION EXISTE
+    if not descripcion or not descripcion.strip():
+        raise ValueError("La descripcion es obligatoria")
+
+    #SE VALIDA QUE EL MONTO SE UN NUMERO
+    try:
+        monto = float(monto)
+    except (TypeError, ValueError):
+        raise ValueError("El monto debe ser un numero valido")
+
+    # EVITAMOS VALORES COMO NaN O INFINITO.
+    if not isfinite(monto):
+        raise ValueError("El monto debe ser un número finito.")
+
+    # UN MOVIMIENTO FINANCIERO NO DEBE TENER UN MONTO NEGATIVO.
+    if monto < 0:
+        raise ValueError("El monto no puede ser negativo.")
+
+    # DEVOLVEMOS LOS DATOS LIMPIOS PARA QUE EL RESTO DEL PROGRAMA
+    # TRABAJE CON ELLOS.
+    return tipo, categoria.strip(), descripcion.strip(), monto
+
 
 def registrar_movimiento(tipo, categoria, descripcion, monto):
+    # PRIMERO VALIDAMOS LOS DATOS.
+    # SI ALGO ESTÁ MAL, ValueError DETIENE EL PROCESO
+    # Y NO SE ENVÍA NADA A POSTGRESQL.
+    tipo, categoria, descripcion, monto = validar_movimiento(
+        tipo,
+        categoria,
+        descripcion,
+        monto,
+    )
+
+    # SI LLEGAMOS AQUÍ, LOS DATOS PASARON NUESTRAS VALIDACIONES.
     fecha_hoy = date.today().isoformat()
-    agregar_fila(fecha_hoy, tipo, categoria, descripcion, monto)
+
+    # AHORA SÍ GUARDAMOS EL MOVIMIENTO EN POSTGRESQL.
+    agregar_fila(
+        fecha_hoy,
+        tipo,
+        categoria,
+        descripcion,
+        monto,
+    )
+
     print(f"✅ Registrado: {tipo} | {categoria} | {descripcion} | ${monto}")
 
 
