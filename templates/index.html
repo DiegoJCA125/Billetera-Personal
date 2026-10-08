@@ -110,6 +110,15 @@
             background-color: #ffebee;
             color: #c62828;
         }
+        .mensaje-error {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -128,6 +137,12 @@
 
     <a href="/graficas" style="display:block; text-align:center; margin-bottom:16px; color:#1565c0;">📊 Ver gráficas de gastos</a>
     <a href="/mensual" style="display:block; text-align:center; margin-bottom:16px; color:#1565c0;">📅 Ver resumen mensual</a>
+    {% if error_validacion %}
+        <div class="mensaje-error">
+            ⚠️ <strong>Error de validación:</strong>
+            {{ error_validacion }}
+        </div>
+    {% endif %}
 
     <!-- action="/registrar" le dice al formulario A QUÉ RUTA enviar
          los datos cuando se envía. method="POST" debe coincidir con
