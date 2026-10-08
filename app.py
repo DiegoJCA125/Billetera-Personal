@@ -75,19 +75,15 @@ def procesar_formulario():
     tipo = request.form["tipo"]
     categoria = request.form["categoria"]
     descripcion = request.form["descripcion"]
-
-    # OBTENEMOS EL MONTO COMO TEXTO PRIMERO.
     monto = request.form["monto"]
 
     try:
-        # IMPORTANTE:
-        # Convertimos el monto a número y después lo enviamos
-        # a nuestra función central de validación.
+        # CONVERTIMOS EL MONTO A NÚMERO.
+        # Si alguien escribe algo que no sea un número válido,
+        # Python generará un ValueError.
         monto = float(monto)
 
         # VALIDAMOS TODOS LOS DATOS ANTES DE GUARDARLOS.
-        # Si algún dato incumple nuestras reglas,
-        # validar_movimiento() lanzará un ValueError.
         validar_movimiento(
             tipo,
             categoria,
@@ -95,20 +91,28 @@ def procesar_formulario():
             monto,
         )
 
-        # SI LA VALIDACIÓN FUE EXITOSA,
-        # PROCEDEMOS A GUARDAR EL MOVIMIENTO.
+        # SI TODO ES CORRECTO, GUARDAMOS EL MOVIMIENTO.
         if tipo == "Gasto":
             registrar_gasto(categoria, descripcion, monto)
         else:
             registrar_ingreso(categoria, descripcion, monto)
 
     except ValueError as error:
-        # POR AHORA MOSTRAMOS EL ERROR DIRECTAMENTE.
-        # En el siguiente paso lo convertiremos en un
-        # mensaje amigable dentro de la interfaz.
-        return f"Error de validación: {error}", 400
+        # EN LUGAR DE MOSTRAR UN ERROR DE FLASK,
+        # VOLVEMOS A LA PÁGINA PRINCIPAL Y LE ENVIAMOS
+        # EL MENSAJE PARA MOSTRARLO EN LA INTERFAZ.
+        ingresos, gastos, balance = calcular_balance()
+        historial = obtener_historial(limite=10)
 
-    # SI Todo salió bien, VOLVEMOS A LA PÁGINA PRINCIPAL.
+        return render_template(
+            "index.html",
+            ingresos=ingresos,
+            gastos=gastos,
+            balance=balance,
+            historial=historial,
+            error_validacion=str(error),
+        )
+
     return redirect("/")
 
 
