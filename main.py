@@ -37,21 +37,21 @@ def validar_movimiento(tipo, categoria, descripcion, monto):
 
     # VALIDA QUE LA CATEOGIRA EXISTE Y NO SEA SOLO ESPACIO
     if not categoria or not categoria.strip():
-        raise ValueError("La cateogria es obligatoria")
+        raise ValueError("La categoría es obligatoria")
 
     # POSTGRESQL DEFINE categori COMO VARCHAR(100) POR ESO SE VALIDA A SI MISMO EL LIMITE ANTES DE LLEGAR A LA BASE DE DATOS
     if len(categoria.strip()) > 100:
-        raise ValueError("La categoria no puede superar los 100 caracteres")
+        raise ValueError("La categoría no puede superar los 100 caracteres")
 
     #VALIDA QUE LA DESCRIPCION EXISTE
     if not descripcion or not descripcion.strip():
-        raise ValueError("La descripcion es obligatoria")
+        raise ValueError("La descripción es obligatoria")
 
     #SE VALIDA QUE EL MONTO SE UN NUMERO
     try:
         monto = float(monto)
     except (TypeError, ValueError):
-        raise ValueError("El monto debe ser un numero valido")
+        raise ValueError("El monto debe ser un número válido")
 
     # EVITAMOS VALORES COMO NaN O INFINITO.
     if not isfinite(monto):
