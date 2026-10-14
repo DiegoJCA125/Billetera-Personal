@@ -15,6 +15,7 @@ esa llamada.
 import os
 import psycopg2
 from psycopg2 import errors #PERMITE IDENTIFICAR ERRORES ESPECIFICOS EN EL POSTGRESQL
+from logging_config import logger
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -55,40 +56,46 @@ def leer_todas_las_filas():
     return filas
 
 
+
 def agregar_fila(fecha, tipo, categoria, descripcion, monto):
     """
-    Equivalente a sheets.py: agregar_fila().
+    Guarda un movimiento en PostgreSQL.
 
-    %s son "placeholders" — psycopg2 los reemplaza de forma SEGURA
-    por los valores reales que le pasamos en la tupla de después.
-
-    IMPORTANTE POR SEGURIDAD: nunca construyas la consulta SQL
-    pegando texto directamente (ej. f"...VALUES ('{fecha}', ...)")
-    — eso abre la puerta a "SQL injection", donde alguien podría
-    escribir datos maliciosos que se ejecuten como comandos SQL
-    reales. Los placeholders %s evitan ese riesgo por completo.
+    Si la operación falla:
+    1. Registramos el tipo de error.
+    2. Volvemos a lanzar el error para que la aplicación
+       sepa que el movimiento NO se guardó correctamente.
     """
+
     try:
-        # ABRIMOS UNA CONEXION CON POSTGRESQL
+        # Abrimos una conexión con PostgreSQL.
         with obtener_conexion() as conexion:
             with conexion.cursor() as cursor:
+                # Enviamos los datos usando parámetros seguros.
                 cursor.execute(
-                    "INSERT INTO movimientos (fecha, tipo, categoria, descripcion, monto) "
+                    "INSERT INTO movimientos "
+                    "(fecha, tipo, categoria, descripcion, monto) "
                     "VALUES (%s, %s, %s, %s, %s)",
                     (fecha, tipo, categoria, descripcion, monto),
                 )
-            # conexion.commit() "confirma" los cambios de forma permanente.
-            # Sin esto, el INSERT quedaría pendiente y se perdería al
-            # cerrar la conexión. Vive fuera del cursor, sobre la conexión.
+
+            # Confirmamos el cambio en la base de datos.
             conexion.commit()
-        # SI EL MOVIMIENTO SE GUARDO CORRECTAMENTE
+
+        # Solo llegamos aquí si la operación terminó correctamente.
         return True
-    
+
     except Exception as error:
-        # SI POSTGRESQL ENCUENTRA UN PROBLEM, SE CAPTURARA EL ERROR PARA EVITAR QUE LA APLICACION COLAPSE
-        print(f"ERROR AL AGREGAR MOVIMIENTO: {error}")
-        # COLOCAREMOS QWUE LA OPERACION NO FUE EXITOSA
-        return False
+        # Registramos el tipo de error sin incluir datos financieros.
+        logger.error(
+            "Error al agregar movimiento en PostgreSQL. Tipo de error: %s",
+            type(error).__name__,
+        )
+
+        # IMPORTANTE: no ocultamos el error.
+        # La aplicación debe saber que el registro falló.
+        raise
+
 
 def actualizar_fila(id_movimiento, fecha, tipo, categoria, descripcion, monto):
     """Equivalente a sheets.py: actualizar_fila(), pero usando el id real."""

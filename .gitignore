@@ -5,3 +5,5 @@ service_account.json
 venv/
 __pycache__/
 *.pyc
+#REGISTRO LOCALES DE LA APLICAION
+logs/

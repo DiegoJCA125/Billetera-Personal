@@ -20,6 +20,7 @@ from main import (
     MESES,
     validar_movimiento,
 )
+from logging_config import logger 
 
 app = Flask(__name__)
 #LA APLICACION NO DEBE DE INICIAR CON CREDENCIALES PREDETERMINADOS
@@ -78,13 +79,9 @@ def procesar_formulario():
     monto = request.form["monto"]
 
     try:
-        # CONVERTIMOS EL MONTO A NÚMERO.
-        # Si alguien escribe algo que no sea un número válido,
-        # Python generará un ValueError.
-        monto = float(monto)
-
-        # VALIDAMOS TODOS LOS DATOS ANTES DE GUARDARLOS.
-        validar_movimiento(
+        # Validamos los datos y recibimos los valores ya normalizados.
+        # La función también convierte el monto y genera errores en español.
+        tipo, categoria, descripcion, monto = validar_movimiento(
             tipo,
             categoria,
             descripcion,
@@ -97,7 +94,15 @@ def procesar_formulario():
         else:
             registrar_ingreso(categoria, descripcion, monto)
 
+        # Registramos que se guardó un movimiento correctamente.
+        logger.info(
+            "Movimiento registrado correctamente. Tipo: %s",
+            tipo,
+        )
+
     except ValueError as error:
+        # Registramos el motivo por el que se rechazaron los datos.
+        logger.warning("Movimiento rechazado por validación: %s", error)
         # EN LUGAR DE MOSTRAR UN ERROR DE FLASK,
         # VOLVEMOS A LA PÁGINA PRINCIPAL Y LE ENVIAMOS
         # EL MENSAJE PARA MOSTRARLO EN LA INTERFAZ.
@@ -187,7 +192,9 @@ def pagina_mensual():
         balances=balances,
     )
 
-
 if __name__ == "__main__":
-    puerto = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=puerto, debug=True)
+    # Registramos el inicio de la aplicación.
+    logger.info("La aplicación Billetera Personal está iniciando.")
+
+    # Iniciamos el servidor local de Flask.
+    app.run(debug=True)
